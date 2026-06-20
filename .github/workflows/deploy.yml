@@ -1,0 +1,33 @@
+name: Deploy docs
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.x'
+
+      - run: pip install mkdocs mkdocs-material
+
+      - run: mkdocs build
+
+      - name: Deploy via SFTP
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y lftp
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_HOST_KEY }}" > ~/.ssh/known_hosts
+          lftp -e "set sftp:connect-program 'ssh -a -x -v -o BatchMode=yes -i ~/.ssh/deploy_key -l wiki'; \
+            mirror -R --delete --verbose ./site/ /docs; \
+            quit" \
+            sftp://wiki@$DEPLOY_HOST
